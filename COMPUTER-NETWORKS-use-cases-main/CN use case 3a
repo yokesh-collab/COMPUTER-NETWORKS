@@ -1,78 +1,85 @@
-import java.io.*;
 import java.net.*;
+import java.io.*;
+import java.util.HashMap;
 
-public class EchoServer {
-    public static void main(String[] args) {
-        int port = 12345;
+public class DNSServer {
 
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Echo Server is running on port " + port);
+    public static void main(String[] args) throws Exception {
 
-            Socket socket = serverSocket.accept();
-            System.out.println("Client connected!");
+        DatagramSocket serverSocket = new DatagramSocket(9876);
+        System.out.println("DNS Server is running on port 9876...");
 
-            BufferedReader in = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream()));
-            PrintWriter out = new PrintWriter(
-                    socket.getOutputStream(), true);
+        // Simulated DNS table
+        HashMap<String, String> dnsTable = new HashMap<>();
+        dnsTable.put("google.com", "142.250.182.14");
+        dnsTable.put("yahoo.com", "98.137.11.163");
+        dnsTable.put("example.com", "93.184.216.34");
 
-            String message;
-            while ((message = in.readLine()) != null) {
-                System.out.println("Received: " + message);
-                out.println("Echo: " + message);
+        byte[] receiveData = new byte[1024];
+        byte[] sendData;
 
-                if (message.equalsIgnoreCase("bye")) {
-                    break;
-                }
-            }
+        while (true) {
+            DatagramPacket receivePacket =
+                    new DatagramPacket(receiveData, receiveData.length);
 
-            socket.close();
-            System.out.println("Connection closed.");
+            serverSocket.receive(receivePacket);
 
-        } catch (IOException e) {
-            e.printStackTrace();
+            String domain = new String(receivePacket.getData(), 0,
+                    receivePacket.getLength());
+
+            System.out.println("Client requested: " + domain);
+
+            String ip = dnsTable.getOrDefault(domain, "Domain not found");
+
+            sendData = ip.getBytes();
+
+            InetAddress clientAddress = receivePacket.getAddress();
+            int clientPort = receivePacket.getPort();
+
+            DatagramPacket sendPacket =
+                    new DatagramPacket(sendData, sendData.length,
+                            clientAddress, clientPort);
+
+            serverSocket.send(sendPacket);
         }
     }
 }
 
-import java.io.*;
 import java.net.*;
+import java.io.*;
 
-public class EchoClient {
-    public static void main(String[] args) {
-        String host = "localhost";
-        int port = 12345;
+public class DNSClient {
 
-        try (Socket socket = new Socket(host, port)) {
+    public static void main(String[] args) throws Exception {
 
-            BufferedReader userInput = new BufferedReader(
-                    new InputStreamReader(System.in));
+        DatagramSocket clientSocket = new DatagramSocket();
+        InetAddress serverAddress = InetAddress.getByName("localhost");
 
-            BufferedReader in = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream()));
+        BufferedReader userInput =
+                new BufferedReader(new InputStreamReader(System.in));
 
-            PrintWriter out = new PrintWriter(
-                    socket.getOutputStream(), true);
+        System.out.print("Enter domain name: ");
+        String domain = userInput.readLine();
 
-            String message;
+        byte[] sendData = domain.getBytes();
+        byte[] receiveData = new byte[1024];
 
-            System.out.println("Connected to Echo Server.");
-            System.out.println("Type messages (type 'bye' to quit):");
+        DatagramPacket sendPacket =
+                new DatagramPacket(sendData, sendData.length,
+                        serverAddress, 9876);
 
-            while (true) {
-                message = userInput.readLine();
-                out.println(message);
+        clientSocket.send(sendPacket);
 
-                String response = in.readLine();
-                System.out.println("Server: " + response);
+        DatagramPacket receivePacket =
+                new DatagramPacket(receiveData, receiveData.length);
 
-                if (message.equalsIgnoreCase("bye")) {
-                    break;
-                }
-            }
+        clientSocket.receive(receivePacket);
 
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        String response = new String(receivePacket.getData(), 0,
+                receivePacket.getLength());
+
+        System.out.println("IP Address: " + response);
+
+        clientSocket.close();
     }
 }
